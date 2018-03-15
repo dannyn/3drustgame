@@ -1,5 +1,6 @@
 use gl;
 use std;
+use std::collections::HashMap;
 use std::ffi::{CString, CStr};
 use resources::{self, Resources};
 
@@ -15,9 +16,15 @@ pub enum Error {
     LinkError { name: String, message: String },
 }
 
+struct Uniform {
+    id: gl::types::GLint, 
+    typ: gl::types::GLenum,
+}
 pub struct Program {
     gl: gl::Gl,
     id: gl::types::GLuint,
+
+    uniforms: HashMap<String, Uniform>,
 }
 
 impl Program {
@@ -79,7 +86,7 @@ impl Program {
             unsafe { gl.DetachShader(program_id, shader.id()); }
         }
 
-        Ok(Program { gl: gl.clone(), id: program_id })
+        Ok(Program { gl: gl.clone(), id: program_id, uniforms: HashMap::new()})
     }
 
     pub fn id(&self) -> gl::types::GLuint {
@@ -89,6 +96,50 @@ impl Program {
     pub fn set_used(&self) {
         unsafe {
             self.gl.UseProgram(self.id);
+        }
+    }
+
+    fn get_uniforms(&mut self) {
+        let mut total: gl::types::GLint = -1;
+        unsafe {
+            self.gl.GetProgramiv(self.id, gl::ACTIVE_UNIFORMS, 
+                                 &mut total as *mut gl::types::GLint);
+        }
+        for u in 0..total {
+            let mut name_len: i32 = -1;
+            let mut num: i32 = -1;
+            let mut typ : gl::types::GLenum = gl::ZERO;
+            let name = create_whitespace_cstring_with_len(256 as usize);
+
+            unsafe {
+                self.gl.GetActiveUniform(self.id, u as u32, 255, 
+                    &mut name_len as *mut gl::types::GLint, 
+                    &mut num as *mut gl::types::GLint, 
+                    &mut typ as *mut gl::types::GLenum, 
+                    name.as_ptr() as *mut gl::types::GLchar);
+            }
+            let loc : gl::types::GLint;
+            unsafe {
+                loc = self.gl.GetUniformLocation(self.id, name.as_ptr());
+            }
+            let name_slice : &str = name.to_str().unwrap();
+            let name_str : String = name_slice.to_owned();
+
+            let uniform = Uniform{id: loc, typ: typ,};
+            self.uniforms.insert(name_str, uniform);
+        }
+    }
+
+    pub fn uniform_loc(&self, name: &CStr) -> gl::types::GLint {
+        unsafe {
+            self.gl.GetUniformLocation(self.id, name.as_ptr())
+        }
+    }
+
+    pub fn set_uniform1f(&self, name: String, value: gl::types::GLfloat) {
+        let uniform = &self.uniforms[&name];
+        unsafe {
+            self.gl.Uniform1f(uniform.id, value);
         }
     }
 }
