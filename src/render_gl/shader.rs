@@ -142,11 +142,16 @@ impl Program {
         }
     }
 
-    pub fn set_uniform1f(&self, name: String, value: gl::types::GLfloat) {
+    pub fn set_uniform1f(&self, name: String, value: gl::types::GLfloat) -> Result<(),String> {
         let uniform = &self.uniforms[&name];
-        unsafe {
-            self.gl.Uniform1f(uniform.id, value);
+        if uniform.typ == gl::FLOAT {
+            unsafe {
+                self.gl.Uniform1f(uniform.id, value);
+            }
+        } else {
+            Err("This uniform takes a float");
         }
+        Ok(())
     }
 }
 
