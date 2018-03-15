@@ -86,7 +86,8 @@ impl Program {
             unsafe { gl.DetachShader(program_id, shader.id()); }
         }
 
-        Ok(Program { gl: gl.clone(), id: program_id, uniforms: HashMap::new()})
+        let uniforms = Program::get_uniforms(gl, program_id);
+        Ok(Program { gl: gl.clone(), id: program_id, uniforms: uniforms})
     }
 
     pub fn id(&self) -> gl::types::GLuint {
@@ -99,10 +100,14 @@ impl Program {
         }
     }
 
-    fn get_uniforms(&mut self) {
+    fn get_uniforms(gl: &gl::Gl, id: gl::types::GLuint) -> HashMap<String, Uniform> {
+
+        let mut uniforms: HashMap<String, Uniform>;
+        uniforms = HashMap::new();
+
         let mut total: gl::types::GLint = -1;
         unsafe {
-            self.gl.GetProgramiv(self.id, gl::ACTIVE_UNIFORMS, 
+            gl.GetProgramiv(id, gl::ACTIVE_UNIFORMS, 
                                  &mut total as *mut gl::types::GLint);
         }
         for u in 0..total {
@@ -112,7 +117,7 @@ impl Program {
             let name = create_whitespace_cstring_with_len(256 as usize);
 
             unsafe {
-                self.gl.GetActiveUniform(self.id, u as u32, 255, 
+                gl.GetActiveUniform(id, u as u32, 255, 
                     &mut name_len as *mut gl::types::GLint, 
                     &mut num as *mut gl::types::GLint, 
                     &mut typ as *mut gl::types::GLenum, 
@@ -120,14 +125,15 @@ impl Program {
             }
             let loc : gl::types::GLint;
             unsafe {
-                loc = self.gl.GetUniformLocation(self.id, name.as_ptr());
+                loc = gl.GetUniformLocation(id, name.as_ptr());
             }
             let name_slice : &str = name.to_str().unwrap();
             let name_str : String = name_slice.to_owned();
 
             let uniform = Uniform{id: loc, typ: typ,};
-            self.uniforms.insert(name_str, uniform);
+            uniforms.insert(name_str, uniform);
         }
+        uniforms
     }
 
     pub fn uniform_loc(&self, name: &CStr) -> gl::types::GLint {
